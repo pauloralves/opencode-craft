@@ -1,0 +1,33 @@
+{
+  "name": "opencode-craft",
+  "version": "0.1.0",
+  "description": "Senior pair programmer, craftsmanship coach, and knowledge ledger plugin for OpenCode",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "bin": {
+    "opencode-craft": "./bin/opencode-craft.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "agents",
+    "skills",
+    "scripts",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "pair-programming",
+    "craftsmanship",
+    "interview-prep",
+    "software-engineering"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "Paulo Alves",
+  "license": "MIT"
+}
