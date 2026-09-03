@@ -9,7 +9,10 @@ export const DB_PATH = path.join(os.homedir(), ".local", "share", "opencode", "o
  * Traverses up directory tree to find project root (containing .git, package.json, etc.)
  */
 export function findProjectRoot(startDir = process.cwd()) {
-  let current = path.resolve(startDir);
+  const dirPath = typeof startDir === "string"
+    ? startDir
+    : (startDir?.worktree || startDir?.directory || process.cwd());
+  let current = path.resolve(dirPath);
   const root = path.parse(current).root;
 
   while (current !== root) {
@@ -287,7 +290,10 @@ export function generateLearningPathContent(projectRoot, sessionLogs, existingCo
 }
 
 export async function syncLedger(targetDir = process.cwd(), options = {}) {
-  const projectRoot = findProjectRoot(targetDir);
+  const resolvedTarget = typeof targetDir === "string"
+    ? targetDir
+    : (targetDir?.worktree || targetDir?.directory || process.cwd());
+  const projectRoot = findProjectRoot(resolvedTarget);
   const outputPath = path.join(projectRoot, "LEARNING_PATH.md");
 
   if (!fs.existsSync(DB_PATH)) {
