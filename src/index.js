@@ -1,21 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { syncLedger } from "./ledger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "..");
 
+export { syncLedger } from "./ledger.js";
+
 export const CraftPlugin = async ({ client, project, directory, worktree, $ }) => {
-  const syncLedger = async () => {
+  const triggerSync = async () => {
     try {
-      const scriptPath = path.join(packageRoot, "scripts", "sync_ledger.py");
       const targetDir = worktree || directory || process.cwd();
-      if (fs.existsSync(scriptPath)) {
-        if ($) {
-          await $`python3 ${scriptPath} --dir ${targetDir}`.quiet();
-        }
-      }
+      await syncLedger(targetDir);
     } catch {
       // Non-blocking best-effort ledger update
     }
@@ -65,7 +63,7 @@ export const CraftPlugin = async ({ client, project, directory, worktree, $ }) =
 
     event: async ({ event }) => {
       if (event?.type === "session.created" || event?.type === "session.idle") {
-        syncLedger();
+        await triggerSync();
       }
     }
   };

@@ -5,6 +5,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { syncLedger } from "../src/ledger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,35 +82,45 @@ Restart OpenCode to begin using the @craft agent.
 `);
 }
 
-function handleSync() {
-  const scriptPath = path.join(packageRoot, "scripts", "sync_ledger.py");
+async function handleSync() {
   const targetDir = process.cwd();
   console.log(`Updating LEARNING_PATH.md for ${targetDir}...`);
-  const res = spawnSync("python3", [scriptPath, "--dir", targetDir], {
-    stdio: "inherit",
-  });
-  if (res.status === 0) {
-    console.log(`\x1b[32m✔\x1b[0m LEARNING_PATH.md synced successfully.`);
-  } else {
-    process.exit(res.status || 1);
+  try {
+    const success = await syncLedger(targetDir, { verbose: true });
+    if (success) {
+      console.log(`\x1b[32m✔\x1b[0m LEARNING_PATH.md synced successfully.`);
+    } else {
+      console.error(`\x1b[31m✖\x1b[0m Could not update LEARNING_PATH.md.`);
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error(`\x1b[31m✖\x1b[0m Failed to sync ledger:`, err.message);
+    process.exit(1);
   }
 }
 
-switch (command) {
-  case "eject":
-  case "init":
-    handleEject();
-    break;
-  case "sync":
-    handleSync();
-    break;
-  case "help":
-  case "--help":
-  case "-h":
-    printHelp();
-    break;
-  default:
-    console.error(`Unknown command: ${command}`);
-    printHelp();
-    process.exit(1);
+async function main() {
+  switch (command) {
+    case "eject":
+    case "init":
+      handleEject();
+      break;
+    case "sync":
+      await handleSync();
+      break;
+    case "help":
+    case "--help":
+    case "-h":
+      printHelp();
+      break;
+    default:
+      console.error(`Unknown command: ${command}`);
+      printHelp();
+      process.exit(1);
+  }
 }
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
