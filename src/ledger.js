@@ -203,6 +203,14 @@ function formatTimestamp(timestampMs) {
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
+/**
+ * Generates LEARNING_PATH.md content with graduated density:
+ * - Recent (last maxSessions): full entries with query summaries
+ * - Mid (next 12): title-only, truncated, no queries
+ * - Ancient (everything older): single aggregate line preserving date range
+ */
+const MID_HISTORY_LIMIT = 12;
+
 export function generateLearningPathContent(projectRoot, sessionLogs, existingContent = "", maxSessions = 8) {
   const now = formatTimestamp(Date.now());
   const lines = [
@@ -222,15 +230,35 @@ export function generateLearningPathContent(projectRoot, sessionLogs, existingCo
   if (sessionLogs.length === 0) {
     lines.push("No recorded sessions yet in this project directory.");
   } else {
-    const visibleSessions = sessionLogs.length > maxSessions
-      ? sessionLogs.slice(-maxSessions)
-      : sessionLogs;
+    // --- Graduated Density Compression ---
+    // Recent: full detail (title, date, key inquiries)
+    // Mid: title-only, truncated, no queries
+    // Ancient: single aggregate line preserving date range
 
-    if (sessionLogs.length > maxSessions) {
-      lines.push(`*(${sessionLogs.length - maxSessions} earlier session(s) archived to maintain optimal context window)*\n`);
+    const recent = sessionLogs.slice(-maxSessions);
+    const older = sessionLogs.slice(0, sessionLogs.length - maxSessions);
+    const mid = older.slice(-MID_HISTORY_LIMIT);
+    const ancient = older.slice(0, older.length - MID_HISTORY_LIMIT);
+
+    // Ancient aggregate: one line for everything beyond the mid window
+    if (ancient.length > 0) {
+      const firstDate = ancient[0].date;
+      const lastDate = ancient[ancient.length - 1].date;
+      lines.push(`*${ancient.length} earlier sessions (${firstDate} to ${lastDate}) summarized in the OpenCode database*`);
+      lines.push("");
     }
 
-    for (const s of visibleSessions) {
+    // Mid zone: title-only entries (truncated), no query text
+    for (const s of mid) {
+      const truncated = s.title.length > 70 ? s.title.slice(0, 67) + "..." : s.title;
+      lines.push(`- **${s.mode}**: ${truncated} (${s.date})`);
+    }
+    if (mid.length > 0) {
+      lines.push("");
+    }
+
+    // Recent zone: full detail with key inquiries
+    for (const s of recent) {
       lines.push(`### [${s.mode}] ${s.title} (${s.date})`);
       if (s.queries && s.queries.length > 0) {
         lines.push("**Key Inquiries & Themes:**");

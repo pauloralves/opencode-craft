@@ -95,6 +95,10 @@ def fetch_sessions_and_messages(target_dir: str):
         print(f"[sync_ledger] Warning: unable to query opencode.db: {e}", file=sys.stderr)
         return []
 
+# Constants for graduated density
+MID_HISTORY_LIMIT = 12
+
+
 def generate_learning_path_md(project_root: Path, session_logs: list):
     output_path = project_root / "LEARNING_PATH.md"
 
@@ -115,12 +119,34 @@ def generate_learning_path_md(project_root: Path, session_logs: list):
     if not session_logs:
         lines.append("No recorded sessions yet in this project directory.")
     else:
-        max_sessions = 8
-        visible_sessions = session_logs[-max_sessions:] if len(session_logs) > max_sessions else session_logs
-        if len(session_logs) > max_sessions:
-            lines.append(f"*({len(session_logs) - max_sessions} earlier session(s) archived to maintain optimal context window)*\n")
+        # --- Graduated Density Compression ---
+        # Recent: full entries with query summaries (last max_sessions)
+        # Mid: title-only, truncated, no queries
+        # Ancient: single aggregate line preserving date range
 
-        for s in visible_sessions:
+        recent = session_logs[-8:]  # last 8 get full detail
+        older = session_logs[:-8]   # everything else
+
+        # Mid zone: title-only, next 12
+        mid = older[-MID_HISTORY_LIMIT:] if len(older) > MID_HISTORY_LIMIT else older
+        ancient = older[:len(older) - MID_HISTORY_LIMIT] if len(older) > MID_HISTORY_LIMIT else []
+
+        # Ancient aggregate: one line for everything beyond the mid window
+        if ancient:
+            first_date = ancient[0]["date"]
+            last_date = ancient[-1]["date"]
+            lines.append(f"*{len(ancient)} earlier sessions ({first_date} to {last_date}) summarized in the OpenCode database*")
+            lines.append("")
+
+        # Mid zone: title-only entries (truncated), no query text
+        for s in mid:
+            truncated = s["title"][:70] if len(s["title"]) > 70 else s["title"]
+            lines.append(f"- **{s['mode']}**: {truncated} ({s['date']})")
+        if mid:
+            lines.append("")
+
+        # Recent zone: full detail with key inquiries
+        for s in recent:
             lines.append(f"### [{s['mode']}] {s['title']} ({s['date']})")
             if s["queries"]:
                 lines.append("**Key Inquiries & Themes:**")

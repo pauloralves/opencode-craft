@@ -73,11 +73,14 @@ test("generateLearningPathContent: bounds visible session history to prevent con
   const output = generateLearningPathContent(root, manySessions, "", 5);
 
   assert.ok(output.includes("- **Total Recorded Sessions**: 15"));
-  assert.ok(output.includes("*(10 earlier session(s) archived to maintain optimal context window)*"));
-  // Only the last 5 sessions should appear in detail
+  // Graduated density: mid zone (title-only) appears before recent full-detail zone
+  // Recent zone: last 5 sessions (session 10-14) appear with full detail
   assert.ok(output.includes("### [CRAFT] Session 14"));
   assert.ok(output.includes("### [CRAFT] Session 10"));
+  // Session 0 should NOT appear as a full detail header (it's in mid zone as title-only)
   assert.ok(!output.includes("### [CRAFT] Session 0"));
+  // Mid zone should have title-only format (no queries, not full headers)
+  assert.ok(output.includes("- **CRAFT**: Session 0"));
 });
 
 test("syncLedger: executes non-blocking and returns boolean without throwing on missing db", async () => {
