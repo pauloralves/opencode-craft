@@ -5,3 +5,5 @@ dist/
 .env
 .opencode/
 LEARNING_PATH.md
+__pycache__/
+*.pyc

@@ -33,7 +33,7 @@
     "software-engineering"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22.5.0"
   },
   "author": "Paulo Alves",
   "license": "MIT",
