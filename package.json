@@ -8,6 +8,9 @@
   "bin": {
     "opencode-craft": "bin/opencode-craft.mjs"
   },
+  "scripts": {
+    "test": "node --test tests/**/*.test.js"
+  },
   "files": [
     "src",
     "bin",
