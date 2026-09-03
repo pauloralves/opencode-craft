@@ -81,4 +81,4 @@ npx opencode-craft sync
 
 ## License
 
-MIT © [Paulo Alves](https://github.com/pauloalves)
+MIT © [Paulo Alves](https://github.com/pauloralves)
