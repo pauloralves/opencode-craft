@@ -8,10 +8,12 @@ const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "..");
 
 export const CraftPlugin = async ({ client, project, directory, worktree, $ }) => {
-  const triggerSync = async () => {
+  const triggerSync = () => {
     try {
       const targetDir = worktree || directory || process.cwd();
-      await syncLedger(targetDir);
+      // Fire-and-forget: the ledger must never block session startup.
+      // The freshness guard in syncLedger makes repeated launches cheap.
+      syncLedger(targetDir).catch(() => {});
     } catch {
       // Non-blocking best-effort ledger update
     }
@@ -61,7 +63,9 @@ export const CraftPlugin = async ({ client, project, directory, worktree, $ }) =
 
     event: async ({ event }) => {
       if (event?.type === "session.created" || event?.type === "session.idle") {
-        await triggerSync();
+        // Do NOT await triggerSync — opencode awaits this hook, and the
+        // ledger sync (DB reads, process spawns) would delay startup.
+        triggerSync();
       }
     }
   };

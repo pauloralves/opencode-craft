@@ -1,9 +1,26 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 export const DB_PATH = path.join(os.homedir(), ".local", "share", "opencode", "opencode.db");
+
+// Event-driven syncs (session.created / session.idle) skip the ledger entirely
+// when it was written within this window. Avoids re-reading multi-MB part
+// payloads on every launch and every idle event. Manual `sync` passes force.
+const SYNC_FRESHNESS_MS = 5 * 60 * 1000;
+
+// Part payloads can be tens of MB; the execFile default maxBuffer (1MB) would
+// throw on real projects. Generous ceiling, and SQL-side filtering below keeps
+// actual transfer small.
+const MAX_BUFFER = 256 * 1024 * 1024;
+
+// Only text parts (user prompts / assistant replies) matter for the ledger.
+// Filtering in SQL keeps tool output, steps, and image payloads out of the pipe.
+const TEXT_PARTS_SQL = `json_extract(p.data, '$.type') = 'text'`;
 
 /**
  * Traverses up directory tree to find project root (containing .git, package.json, etc.)
@@ -47,7 +64,60 @@ async function getNativeSqlite() {
 }
 
 /**
- * Query sessions using native node:sqlite DatabaseSync
+ * Build the ledger entry for one session from its (already text-filtered) parts.
+ * Shared by the native and sqlite3-CLI backends.
+ */
+function buildSessionResult(s, rows) {
+  const userPrompts = [];
+  const assistantSnippets = [];
+
+  for (const row of rows) {
+    try {
+      const data = typeof row.data === "string" ? JSON.parse(row.data) : row.data;
+      if (data && data.type === "text" && typeof data.text === "string") {
+        const txt = data.text.trim();
+        if (txt) {
+          if (userPrompts.length === assistantSnippets.length) {
+            userPrompts.push(txt);
+          } else {
+            assistantSnippets.push(txt);
+          }
+        }
+      }
+    } catch {
+      // ignore corrupted part JSON
+    }
+  }
+
+  return {
+    id: s.id,
+    title: s.title || "Session",
+    date: formatTimestamp(s.time_created),
+    mode: (s.agent || "build").toUpperCase(),
+    queries: userPrompts
+      .slice(0, 3)
+      .map((q) => q.replace(/\r?\n/g, " ").slice(0, 120)),
+  };
+}
+
+/**
+ * Fetch all text parts for the project's sessions in a single query.
+ * Returns a Map<session_id, rows> preserving part order.
+ */
+function groupPartsBySession(rows) {
+  const bySession = new Map();
+  for (const row of rows) {
+    const sid = row.sid ?? row.session_id;
+    const list = bySession.get(sid);
+    if (list) list.push(row);
+    else bySession.set(sid, [row]);
+  }
+  return bySession;
+}
+
+/**
+ * Query sessions using native node:sqlite DatabaseSync (Node.js >= 22.5.0).
+ * Synchronous by design of the API; freshness guard keeps this off the hot path.
  */
 function fetchWithNativeSqlite(DatabaseSync, targetDir) {
   const db = new DatabaseSync(DB_PATH, { readOnly: true });
@@ -60,133 +130,67 @@ function fetchWithNativeSqlite(DatabaseSync, targetDir) {
     `);
     const sessions = sessionStmt.all(targetDir, `${targetDir}/%`);
 
-    const partStmt = db.prepare(`
-      SELECT data
-      FROM part
-      WHERE session_id = ?
-      ORDER BY time_created ASC
-    `);
-
-    const results = [];
-    for (const s of sessions) {
-      const parts = partStmt.all(s.id);
-      const userPrompts = [];
-      const assistantSnippets = [];
-
-      for (const row of parts) {
-        try {
-          const data = typeof row.data === "string" ? JSON.parse(row.data) : row.data;
-          if (data && data.type === "text" && typeof data.text === "string") {
-            const txt = data.text.trim();
-            if (txt) {
-              if (userPrompts.length === assistantSnippets.length) {
-                userPrompts.push(txt);
-              } else {
-                assistantSnippets.push(txt);
-              }
-            }
-          }
-        } catch {
-          // ignore corrupted part JSON
-        }
-      }
-
-      const dt = formatTimestamp(s.time_created);
-      const mode = (s.agent || "build").toUpperCase();
-      const queries = userPrompts
-        .slice(0, 3)
-        .map((q) => q.replace(/\r?\n/g, " ").slice(0, 120));
-
-      results.push({
-        id: s.id,
-        title: s.title || "Session",
-        date: dt,
-        mode,
-        queries,
-      });
+    let parts = [];
+    if (sessions.length > 0) {
+      const partStmt = db.prepare(`
+        SELECT p.session_id AS sid, p.data AS data
+        FROM part p
+        JOIN session s ON s.id = p.session_id
+        WHERE (s.directory = ? OR s.directory LIKE ?)
+          AND ${TEXT_PARTS_SQL}
+        ORDER BY p.time_created ASC
+      `);
+      parts = partStmt.all(targetDir, `${targetDir}/%`);
     }
 
-    return results;
+    const bySession = groupPartsBySession(parts);
+    return sessions.map((s) => buildSessionResult(s, bySession.get(s.id) || []));
   } finally {
     db.close();
   }
 }
 
 /**
- * Query sessions using system sqlite3 CLI with JSON output (zero npm dependencies)
+ * Query sessions using system sqlite3 CLI with JSON output (zero npm dependencies).
+ * Async: never blocks the runtime event loop while processes run.
  */
-function fetchWithSqliteCli(targetDir) {
+async function fetchWithSqliteCli(targetDir) {
   const escapedDir = targetDir.replace(/'/g, "''");
   const sessionQuery = `SELECT id, slug, directory, title, agent, time_created, time_updated FROM session WHERE directory = '${escapedDir}' OR directory LIKE '${escapedDir}/%' ORDER BY time_created ASC;`;
 
-  const sessionOutput = execFileSync("sqlite3", ["-json", DB_PATH, sessionQuery], {
+  const sessionRes = await execFileAsync("sqlite3", ["-json", DB_PATH, sessionQuery], {
     encoding: "utf-8",
-    stdio: ["ignore", "pipe", "ignore"],
+    maxBuffer: MAX_BUFFER,
   });
+  const sessions = JSON.parse(sessionRes.stdout || "[]");
 
-  const sessions = JSON.parse(sessionOutput || "[]");
-  const results = [];
-
-  for (const s of sessions) {
-    const escapedId = String(s.id).replace(/'/g, "''");
-    const partQuery = `SELECT data FROM part WHERE session_id = '${escapedId}' ORDER BY time_created ASC;`;
-    let parts = [];
+  // Single JOIN for all parts instead of one process spawn per session.
+  let parts = [];
+  if (sessions.length > 0) {
     try {
-      const partOutput = execFileSync("sqlite3", ["-json", DB_PATH, partQuery], {
+      const partQuery = `SELECT p.session_id AS sid, p.data AS data FROM part p JOIN session s ON s.id = p.session_id WHERE (s.directory = '${escapedDir}' OR s.directory LIKE '${escapedDir}/%') AND ${TEXT_PARTS_SQL} ORDER BY p.time_created ASC;`;
+      const partRes = await execFileAsync("sqlite3", ["-json", DB_PATH, partQuery], {
         encoding: "utf-8",
-        stdio: ["ignore", "pipe", "ignore"],
+        maxBuffer: MAX_BUFFER,
       });
-      parts = JSON.parse(partOutput || "[]");
+      parts = JSON.parse(partRes.stdout || "[]");
     } catch {
       parts = [];
     }
-
-    const userPrompts = [];
-    const assistantSnippets = [];
-
-    for (const row of parts) {
-      try {
-        const data = typeof row.data === "string" ? JSON.parse(row.data) : row.data;
-        if (data && data.type === "text" && typeof data.text === "string") {
-          const txt = data.text.trim();
-          if (txt) {
-            if (userPrompts.length === assistantSnippets.length) {
-              userPrompts.push(txt);
-            } else {
-              assistantSnippets.push(txt);
-            }
-          }
-        }
-      } catch {
-        // ignore corrupted part JSON
-      }
-    }
-
-    const dt = formatTimestamp(s.time_created);
-    const mode = (s.agent || "build").toUpperCase();
-    const queries = userPrompts
-      .slice(0, 3)
-      .map((q) => q.replace(/\r?\n/g, " ").slice(0, 120));
-
-    results.push({
-      id: s.id,
-      title: s.title || "Session",
-      date: dt,
-      mode,
-      queries,
-    });
   }
 
-  return results;
+  const bySession = groupPartsBySession(parts);
+  return sessions.map((s) => buildSessionResult(s, bySession.get(s.id) || []));
 }
 
 /**
  * Query sessions using Python fallback
  */
-function fetchWithPythonFallback(projectRoot, scriptPath) {
+async function fetchWithPythonFallback(projectRoot, scriptPath) {
   if (fs.existsSync(scriptPath)) {
-    execFileSync("python3", [scriptPath, "--dir", projectRoot], {
+    await execFileAsync("python3", [scriptPath, "--dir", projectRoot], {
       stdio: "ignore",
+      maxBuffer: MAX_BUFFER,
     });
     return true;
   }
@@ -302,6 +306,19 @@ export async function syncLedger(targetDir = process.cwd(), options = {}) {
     return false;
   }
 
+  // Event-driven syncs skip when the ledger is fresh. Manual CLI syncs pass
+  // `force: true` and always run.
+  if (!options.force) {
+    try {
+      const stat = fs.statSync(outputPath);
+      if (Date.now() - stat.mtimeMs < SYNC_FRESHNESS_MS) {
+        return false;
+      }
+    } catch {
+      // no ledger yet — sync normally
+    }
+  }
+
   if (!fs.existsSync(DB_PATH)) {
     if (options.verbose) {
       console.warn(`[opencode-craft] Database not found at ${DB_PATH}`);
@@ -326,7 +343,7 @@ export async function syncLedger(targetDir = process.cwd(), options = {}) {
   // 2. Try sqlite3 CLI
   if (sessionLogs === null) {
     try {
-      sessionLogs = fetchWithSqliteCli(projectRoot);
+      sessionLogs = await fetchWithSqliteCli(projectRoot);
     } catch (err) {
       if (options.verbose) {
         console.warn("[opencode-craft] sqlite3 CLI query failed:", err.message);
@@ -338,7 +355,7 @@ export async function syncLedger(targetDir = process.cwd(), options = {}) {
   if (sessionLogs === null) {
     const pythonScript = options.pythonScript || path.resolve(import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname), "..", "scripts", "sync_ledger.py");
     try {
-      const ok = fetchWithPythonFallback(projectRoot, pythonScript);
+      const ok = await fetchWithPythonFallback(projectRoot, pythonScript);
       if (ok) return true;
     } catch {
       // ignore

@@ -92,3 +92,34 @@ test("syncLedger: executes non-blocking and returns boolean without throwing on 
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("syncLedger: fresh ledger skips DB access unless force is set", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "craft-test-"));
+  try {
+    const md = path.join(tempDir, "LEARNING_PATH.md");
+    fs.writeFileSync(md, "# fresh");
+    fs.utimesSync(md, new Date(), new Date());
+
+    const warnings = [];
+    const origWarn = console.warn;
+    console.warn = (m) => warnings.push(m);
+    try {
+      const skipped = await syncLedger(tempDir, { verbose: true });
+      assert.strictEqual(skipped, false);
+    } finally {
+      console.warn = origWarn;
+    }
+    assert.ok(
+      !warnings.some((w) => String(w).includes("Database not found")),
+      "fresh ledger should skip DB access entirely"
+    );
+
+    // Force bypasses the guard even with a fresh ledger: it proceeds to the
+    // DB path (outcome is machine-dependent — DB may or may not exist — but
+    // it must run without throwing).
+    const forced = await syncLedger(tempDir, { verbose: false, force: true });
+    assert.strictEqual(typeof forced, "boolean");
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

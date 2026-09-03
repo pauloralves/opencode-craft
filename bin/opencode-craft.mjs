@@ -86,7 +86,7 @@ async function handleSync() {
   const targetDir = process.cwd();
   console.log(`Updating LEARNING_PATH.md for ${targetDir}...`);
   try {
-    const success = await syncLedger(targetDir, { verbose: true });
+    const success = await syncLedger(targetDir, { verbose: true, force: true });
     if (success) {
       console.log(`\x1b[32m✔\x1b[0m LEARNING_PATH.md synced successfully.`);
     } else {
