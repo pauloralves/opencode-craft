@@ -60,6 +60,26 @@ test("generateLearningPathContent: formats sessions and preserves custom notes",
   );
 });
 
+test("generateLearningPathContent: bounds visible session history to prevent context bloat", () => {
+  const root = "/fake/repo";
+  const manySessions = Array.from({ length: 15 }, (_, i) => ({
+    id: `ses_${i}`,
+    title: `Session ${i}`,
+    date: "2026-09-03 12:00",
+    mode: "CRAFT",
+    queries: [`Query ${i}`],
+  }));
+
+  const output = generateLearningPathContent(root, manySessions, "", 5);
+
+  assert.ok(output.includes("- **Total Recorded Sessions**: 15"));
+  assert.ok(output.includes("*(10 earlier session(s) archived to maintain optimal context window)*"));
+  // Only the last 5 sessions should appear in detail
+  assert.ok(output.includes("### [CRAFT] Session 14"));
+  assert.ok(output.includes("### [CRAFT] Session 10"));
+  assert.ok(!output.includes("### [CRAFT] Session 0"));
+});
+
 test("syncLedger: executes non-blocking and returns boolean without throwing on missing db", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "craft-test-"));
   try {

@@ -203,7 +203,7 @@ function formatTimestamp(timestampMs) {
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
-export function generateLearningPathContent(projectRoot, sessionLogs, existingContent = "") {
+export function generateLearningPathContent(projectRoot, sessionLogs, existingContent = "", maxSessions = 8) {
   const now = formatTimestamp(Date.now());
   const lines = [
     "# Project Learning Path & Knowledge Ledger",
@@ -222,7 +222,15 @@ export function generateLearningPathContent(projectRoot, sessionLogs, existingCo
   if (sessionLogs.length === 0) {
     lines.push("No recorded sessions yet in this project directory.");
   } else {
-    for (const s of sessionLogs) {
+    const visibleSessions = sessionLogs.length > maxSessions
+      ? sessionLogs.slice(-maxSessions)
+      : sessionLogs;
+
+    if (sessionLogs.length > maxSessions) {
+      lines.push(`*(${sessionLogs.length - maxSessions} earlier session(s) archived to maintain optimal context window)*\n`);
+    }
+
+    for (const s of visibleSessions) {
       lines.push(`### [${s.mode}] ${s.title} (${s.date})`);
       if (s.queries && s.queries.length > 0) {
         lines.push("**Key Inquiries & Themes:**");

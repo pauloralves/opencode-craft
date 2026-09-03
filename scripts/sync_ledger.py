@@ -115,7 +115,12 @@ def generate_learning_path_md(project_root: Path, session_logs: list):
     if not session_logs:
         lines.append("No recorded sessions yet in this project directory.")
     else:
-        for s in session_logs:
+        max_sessions = 8
+        visible_sessions = session_logs[-max_sessions:] if len(session_logs) > max_sessions else session_logs
+        if len(session_logs) > max_sessions:
+            lines.append(f"*({len(session_logs) - max_sessions} earlier session(s) archived to maintain optimal context window)*\n")
+
+        for s in visible_sessions:
             lines.append(f"### [{s['mode']}] {s['title']} ({s['date']})")
             if s["queries"]:
                 lines.append("**Key Inquiries & Themes:**")
