@@ -1,6 +1,6 @@
 {
   "name": "opencode-craft",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Senior pair programmer, craftsmanship coach, and knowledge ledger plugin for OpenCode",
   "type": "module",
   "main": "./src/index.js",
