@@ -8,9 +8,10 @@ const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "..");
 
 export const CraftPlugin = async ({ client, project, directory, worktree, $ }) => {
+  const targetDir = worktree || directory || process.cwd();
+
   const triggerSync = () => {
     try {
-      const targetDir = worktree || directory || process.cwd();
       // Fire-and-forget: the ledger must never block session startup.
       // The freshness guard in syncLedger makes repeated launches cheap.
       syncLedger(targetDir).catch(() => {});
@@ -18,6 +19,11 @@ export const CraftPlugin = async ({ client, project, directory, worktree, $ }) =
       // Non-blocking best-effort ledger update
     }
   };
+
+  // Sync once at boot so LEARNING_PATH.md exists as soon as OpenCode opens
+  // in a project — even before the first session is started. The freshness
+  // guard keeps this a ~1ms stat check on subsequent launches.
+  triggerSync();
 
   return {
     config: async (cfg) => {

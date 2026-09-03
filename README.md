@@ -18,7 +18,7 @@
 - **Portfolio Craftsmanship**: Prioritizes clean modular boundaries, edge case handling, performance characteristics, and self-documenting code.
 
 ### 2. Auto-Synced Knowledge Ledger (`LEARNING_PATH.md`)
-Whenever an OpenCode session starts or finishes, the plugin automatically extracts session queries, agent modes, and architectural decisions from OpenCode's local history and maintains a concise `LEARNING_PATH.md` right in your repository root.
+Whenever OpenCode starts in a project, or a session starts or finishes, the plugin automatically extracts session queries, agent modes, and architectural decisions from OpenCode's local history and maintains a concise `LEARNING_PATH.md` right in your repository root.
 - Syncs run in the background and never block session startup.
 - A 5-minute freshness window skips redundant rewrites; `npx opencode-craft sync` forces an immediate update.
 - Survives across sessions and branches.
