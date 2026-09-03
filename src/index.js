@@ -8,12 +8,12 @@ const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "..");
 
 export const CraftPlugin = async (init = {}) => {
-  // The factory-time context is unreliable: opencode 1.18.27's v1 loader
-  // doesn't always populate worktree/directory, so falling back to cwd can
-  // resolve to "/" and the sync silently no-ops. Keep the factory args, but
-  // prefer the event payload directory (available on session.created) when
-  // the factory context is missing.
-  let targetDir = init.worktree || init.directory;
+  // opencode passes both `directory` and `worktree` to the plugin factory;
+  // `worktree` is frequently "/" (root), which is truthy but useless, and
+  // would silently no-op every sync through the root guard. Prefer the real
+  // project directory, ignoring root/empty values.
+  const realDir = (d) => typeof d === "string" && d.trim() && d !== "/";
+  let targetDir = realDir(init.directory) ? init.directory : realDir(init.worktree) ? init.worktree : undefined;
 
   const triggerSync = (dir = targetDir) => {
     try {
@@ -75,10 +75,18 @@ export const CraftPlugin = async (init = {}) => {
 
     event: async ({ event }) => {
       if (event?.type === "session.created" || event?.type === "session.idle") {
-        // The event payload carries the authoritative project directory;
-        // update the target and sync without blocking.
-        const eventDir = event?.directory || event?.project?.worktree || event?.project?.directory;
+        // The authoritative project directory lives at
+        // properties.info.directory on session.created (e.g.
+        // "/Users/me/project"); properties.info.path is the relative form
+        // ("Users/me/project") and needs a leading slash.
+        const info = event?.properties?.info || {};
+        let eventDir = realDir(info.directory) ? info.directory : undefined;
+        if (!eventDir && typeof info.path === "string" && info.path.trim()) {
+          eventDir = "/" + info.path.replace(/^\/+/, "");
+        }
         if (eventDir) targetDir = eventDir;
+        // Do NOT await — opencode awaits this hook and the ledger sync
+        // (DB reads, process spawns) would delay startup.
         triggerSync();
       }
     }
