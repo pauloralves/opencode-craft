@@ -1,12 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import { CraftPlugin, syncLedger } from "../src/index.js";
+import mod, { CraftPlugin } from "../src/index.js";
+import * as ledger from "../src/ledger.js";
 
-test("plugin: exports CraftPlugin and syncLedger functions", () => {
+test("plugin: exports CraftPlugin (named + default) but no stray functions", async () => {
   assert.strictEqual(typeof CraftPlugin, "function");
-  assert.strictEqual(typeof syncLedger, "function");
+  assert.strictEqual(mod, CraftPlugin);
+  // Every named export must be the plugin itself. Legacy top-level function
+  // exports (like syncLedger) get invoked as separate plugins by opencode.
+  const named = Object.keys(await import("../src/index.js")).sort();
+  assert.deepEqual(named, ["CraftPlugin", "default"]);
+  assert.strictEqual(typeof ledger.syncLedger, "function");
 });
 
 test("plugin: config hook registers craft agent with emerald color and proper permissions", async () => {

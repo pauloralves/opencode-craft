@@ -296,6 +296,12 @@ export async function syncLedger(targetDir = process.cwd(), options = {}) {
   const projectRoot = findProjectRoot(resolvedTarget);
   const outputPath = path.join(projectRoot, "LEARNING_PATH.md");
 
+  // Never write a ledger at the filesystem root (e.g. legacy function
+  // invocation with no directory context resolving cwd to "/").
+  if (projectRoot === path.parse(projectRoot).root) {
+    return false;
+  }
+
   if (!fs.existsSync(DB_PATH)) {
     if (options.verbose) {
       console.warn(`[opencode-craft] Database not found at ${DB_PATH}`);
@@ -351,6 +357,13 @@ export async function syncLedger(targetDir = process.cwd(), options = {}) {
   }
 
   const newContent = generateLearningPathContent(projectRoot, sessionLogs, existingContent);
-  fs.writeFileSync(outputPath, newContent, "utf-8");
+  try {
+    fs.writeFileSync(outputPath, newContent, "utf-8");
+  } catch (err) {
+    if (options.verbose) {
+      console.warn(`[opencode-craft] failed to write ${outputPath}:`, err.message);
+    }
+    return false;
+  }
   return true;
 }

@@ -7,8 +7,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "..");
 
-export { syncLedger } from "./ledger.js";
-
 export const CraftPlugin = async ({ client, project, directory, worktree, $ }) => {
   const triggerSync = async () => {
     try {
