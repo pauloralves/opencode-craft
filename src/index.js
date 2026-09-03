@@ -7,14 +7,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "..");
 
-export const CraftPlugin = async ({ client, project, directory, worktree, $ }) => {
-  const targetDir = worktree || directory || process.cwd();
+export const CraftPlugin = async (init = {}) => {
+  // The factory-time context is unreliable: opencode 1.18.27's v1 loader
+  // doesn't always populate worktree/directory, so falling back to cwd can
+  // resolve to "/" and the sync silently no-ops. Keep the factory args, but
+  // prefer the event payload directory (available on session.created) when
+  // the factory context is missing.
+  let targetDir = init.worktree || init.directory;
 
-  const triggerSync = () => {
+  const triggerSync = (dir = targetDir) => {
     try {
+      if (!dir) return;
       // Fire-and-forget: the ledger must never block session startup.
       // The freshness guard in syncLedger makes repeated launches cheap.
-      syncLedger(targetDir).catch(() => {});
+      syncLedger(dir).catch(() => {});
     } catch {
       // Non-blocking best-effort ledger update
     }
@@ -69,8 +75,10 @@ export const CraftPlugin = async ({ client, project, directory, worktree, $ }) =
 
     event: async ({ event }) => {
       if (event?.type === "session.created" || event?.type === "session.idle") {
-        // Do NOT await triggerSync — opencode awaits this hook, and the
-        // ledger sync (DB reads, process spawns) would delay startup.
+        // The event payload carries the authoritative project directory;
+        // update the target and sync without blocking.
+        const eventDir = event?.directory || event?.project?.worktree || event?.project?.directory;
+        if (eventDir) targetDir = eventDir;
         triggerSync();
       }
     }
