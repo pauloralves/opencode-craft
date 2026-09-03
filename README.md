@@ -1,5 +1,9 @@
 # opencode-craft
 
+[![npm version](https://img.shields.io/npm/v/opencode-craft.svg?color=10b981)](https://www.npmjs.com/package/opencode-craft)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![npm downloads](https://img.shields.io/npm/dm/opencode-craft.svg)](https://www.npmjs.com/package/opencode-craft)
+
 > **Senior pair programmer, craftsmanship coach, and knowledge ledger for [OpenCode](https://opencode.ai).**
 
 `opencode-craft` transforms OpenCode into a seasoned Principal Engineer / Technical Craft Lead sitting beside you. It builds real, working software at full velocity while actively coaching system architecture, engineering trade-offs, portfolio craftsmanship, and interview readiness.
