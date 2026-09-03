@@ -27,7 +27,7 @@ export const CraftPlugin = async ({ client, project, directory, worktree, $ }) =
         cfg.skills = cfg.skills || {};
         const existingPaths = cfg.skills.paths || [];
         if (!existingPaths.includes(skillsDir)) {
-          cfg.skills.paths = [...existingPaths, skillsDir];
+          cfg.skills.paths = [...existingPaths.filter(p => typeof p === 'string'), skillsDir];
         }
       }
 
