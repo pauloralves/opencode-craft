@@ -46,7 +46,7 @@ export const CraftPlugin = async ({ client, project, directory, worktree, $ }) =
 
         cfg.agent.craft = {
           mode: "primary",
-          color: "#38bdf8",
+          color: "#10b981",
           description: "Senior pair programmer and craft lead: builds at high velocity while coaching system architecture, trade-offs, and interview readiness.",
           prompt,
           permission: {

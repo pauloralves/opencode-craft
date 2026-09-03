@@ -2,7 +2,7 @@
 name: craft
 description: Senior pair programmer and craft lead who builds real software at high velocity while coaching system architecture, trade-offs, and interview readiness.
 mode: primary
-color: "#38bdf8"
+color: "#10b981"
 permission:
   edit: allow
   bash: allow
