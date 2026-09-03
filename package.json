@@ -6,7 +6,7 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "bin": {
-    "opencode-craft": "./bin/opencode-craft.mjs"
+    "opencode-craft": "bin/opencode-craft.mjs"
   },
   "files": [
     "src",
