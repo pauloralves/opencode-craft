@@ -9,7 +9,11 @@
     "opencode-craft": "bin/opencode-craft.mjs"
   },
   "scripts": {
-    "test": "node --test tests/**/*.test.js"
+    "test": "node --test tests/**/*.test.js",
+    "release": "npm version $1 && npm publish",
+    "release:patch": "npm run release patch",
+    "release:minor": "npm run release minor",
+    "release:major": "npm run release major"
   },
   "files": [
     "src",
