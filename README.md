@@ -75,6 +75,24 @@ npx opencode-craft sync
 
 ---
 
+## Updating
+
+OpenCode caches installed plugins in `~/.cache/opencode/packages/` and resolves the `latest` tag **only on first install** — it never re-checks npm on later startups. After a new release, force a refresh with:
+
+```bash
+rm -rf ~/.cache/opencode/packages/opencode-craft@latest
+```
+
+The next OpenCode launch will re-resolve `opencode-craft@latest` and install the newest version.
+
+> **During plugin development**, point OpenCode at your working tree instead to skip the cache entirely:
+>
+> ```json
+> { "plugin": ["file:///path/to/opencode-craft"] }
+> ```
+
+---
+
 ## Architecture & Design
 
 1. **Zero Runtime Dependencies**: Written in clean, native Node.js ESM. Runs instantly without requiring runtime compilation or heavy dependency trees.
